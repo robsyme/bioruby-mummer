@@ -2,9 +2,9 @@
 
 [![Build Status](https://secure.travis-ci.org/robsyme/bioruby-mummer.png)](http://travis-ci.org/robsyme/bioruby-mummer)
 
-Full description goes here
+Helper methods for working with nucmer and promer delta files.
 
-Note: this software is under active development!
+Note: this software is under active development! Full documentation will be written at a later date (sorry!).
 
 ## Installation
 
@@ -18,9 +18,6 @@ gem install bio-mummer
 require 'bio-mummer'
 ```
 
-The API doc is online. For more code examples see the test files in
-the source tree.
-        
 ## Project home page
 
 Information on the source tree, documentation, examples, issues and

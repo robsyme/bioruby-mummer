@@ -22,7 +22,7 @@ To use the library
 
 The API doc is online. For more code examples see also the test files in
 the source tree.
-        
+
 == Project home page
 
 Information on the source tree, documentation, issues and how to contribute, see

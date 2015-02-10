@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "bio-mummer"
   gem.homepage = "http://github.com/robsyme/bioruby-mummer"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{Helper methods for reading .delta files}
+  gem.description = %Q{Help for working with the output of the .delta files produced by nucmer and promer}
   gem.email = "rob.syme@gmail.com"
   gem.authors = ["robsyme"]
   # dependencies defined in Gemfile
