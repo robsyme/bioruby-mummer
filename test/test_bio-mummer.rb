@@ -11,8 +11,12 @@ class TestBioMummer < MiniTest::Test
   end
 
   should "have enumerable alignments" do
-    assert_equal "scaffold_012", @report.alignments.first.refname
+    assert_equal "reference", @report.alignments.first.refname
     assert_kind_of Fixnum, @report.alignments.first.refstart
+    assert_equal 1, @report.alignments.first.refstart
+    assert_equal 2435, @report.alignments.first.refstop
+    assert_equal 1, @report.alignments.first.querystart
+    assert_equal 2435, @report.alignments.first.querystop
   end
 
   should "do basic coordinate transforms on the positive strand" do
