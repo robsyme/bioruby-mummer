@@ -106,14 +106,13 @@ module BioMummer
         a.refname == refname && a.refstart <= startpos && a.refstop >= endpos
       end
       if a
+        queryname = a.queryname
         querystart = a.ref_to_query(startpos)
         querystop = a.ref_to_query(endpos)
         if querystart.nil? || querystop.nil?
           return nil
-        elsif a.strand
-          return [querystart, querystop].join("...")
         else
-          return [querystop, querystart].join("...")
+          return [queryname, querystart, querystop, a.strand]
         end
       else
         return nil

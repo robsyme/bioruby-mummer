@@ -42,5 +42,16 @@ class TestBioMummer < MiniTest::Test
     assert_equal 216, a.ref_to_query(101)
     assert_equal 201, a.ref_to_query(118)
   end
+
+  should "transpose a given region if it maps cleanly onto a nucmer alignment" do
+    query_seqs = Hash[Bio::FlatFile.open("test/data/query.fasta").map{ |e| [e.entry_id, e.naseq] }]
+    ref_cds_start  = 26255
+    ref_cds_stop   = 26285
+    ref_cds_source = 'reference'
+
+    query_name, query_start, query_stop, query_strand = @report.transpose_region(ref_cds_source, ref_cds_start, ref_cds_stop)
+    query = query_seqs[query_name].subseq(query_start, query_stop)
+    assert_equal Bio::Sequence::AA.new("MAEPSGYSVQ"), query.complement.translate
+  end
 end
 

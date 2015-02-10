@@ -1,4 +1,5 @@
 require 'simplecov'
+require 'bio'
 
 module SimpleCov::Configuration
   def clean_filters
