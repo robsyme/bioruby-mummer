@@ -1,3 +1,4 @@
+require 'stringio'
 
 module BioMummer
 
@@ -13,25 +14,23 @@ module BioMummer
       @querystop = querystop
       @strand = strand
       @distances = distances
-      @deltas = []
     end
 
     def deltas
-      if @deltas == []
-        a = @distances.each_with_object([0]) do |d, arr|
-          state = arr.last
-          if d > 0
-            @deltas += Array.new(d - 1, state)
-            @deltas.push(nil)
-            arr << state - 1
-          else
-            @deltas += Array.new(d * -1 - 1, state)
-            arr << state + 1
-          end
+      ds = []
+      a = @distances.each_with_object([0]) do |d, arr|
+        state = arr.last
+        if d > 0
+          ds += Array.new(d - 1, state)
+          ds.push(nil)
+          arr << state - 1
+        else
+          ds += Array.new(d * -1 - 1, state)
+          arr << state + 1
         end
-        @deltas << a.last
       end
-      return @deltas
+      ds << a.last
+      return ds
     end
 
     def ref_to_query(ref_position)
@@ -56,6 +55,11 @@ module BioMummer
     def initialize(io)
       raise EncodingError, "Not delta format" unless format_ok?(io)
       @alignments = parse(io.read)
+    end
+
+    def self.open(filename)
+      io = File.open(filename)
+      self.new(super(io))
     end
 
     def parse(string)
