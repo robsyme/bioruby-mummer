@@ -63,7 +63,10 @@ options.ref.each do |name, seq|
 end
 puts "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tDUMMYSAMPLENAME"
 
-d.alignments.group_by{|a| a.refname}.sort_by{|refname, alignments| refname}.each do |refname, alignments|
+d.alignments
+  .group_by{|a| a.refname}.sort_by{|refname, alignments| refname}
+  .take(2)
+  .each do |refname, alignments|
   cursor = 1
   overlap = 0
   alignments.sort_by{|a| [a.refstart, a.refstop].min}.each do |a|
@@ -78,15 +81,16 @@ d.alignments.group_by{|a| a.refname}.sort_by{|refname, alignments| refname}.each
     
     a.distances.inject([0,0]) do |mem, distance|
       if distance > 0
-        qry.insert(mem.first + distance, ".")
+        qry.insert(mem.first + distance - 1, ".")
         [mem.first + distance, mem.last + distance]
       else
-        ref.insert(mem.last - distance, ".")
+        ref.insert(mem.last - distance - 1, ".")
         [mem.first - distance, mem.last - distance]
       end
     end
+    overlap2 = 0
 
-    ref.chars.zip(qry.chars).chunk do |refBase, qryBase|
+    ref.chars.zip(0..(ref.length-1), qry.chars).chunk do |refBase, i, qryBase|
       if refBase == qryBase
         "NOVAR"
       elsif refBase == "."
@@ -97,49 +101,66 @@ d.alignments.group_by{|a| a.refname}.sort_by{|refname, alignments| refname}.each
         "SNP"
       end
     end.drop_while do |varClass, arr|
-      overlap -= arr.length if varClass != "INS"
+      if varClass != "INS"
+        overlap, overlap2 = overlap - arr.length , overlap
+      end
       overlap >= 0
     end.each do |varClass, arr|
       case varClass
       when "NOVAR"
-        begin
+        if overlap2 > 0
+          refBase = arr[overlap2].first.upcase
+        else
+          refBase = arr.first.first.upcase
+          overlap2 = 0
+        end        
         puts [refname,
               cursor,
               ".",
-              options.ref[refname][cursor].upcase,
+              refBase,
               "<NON_REF>",
               '.',
               '.',
-              "END=#{cursor + arr.length - 1}",
+              "END=#{cursor + arr.length - 1 - overlap2};ALTSCAFF=#{a.queryname};RLEN=#{arr.length};OVERLAP2=#{overlap2}",
               "GT:DP:GQ:MIN_DP:PL",
               "0:200:200:200:0,800"].join("\t")
-        rescue
-          $stderr.puts "Error: could not find #{refname}[#{cursor}]"
-        end
-        
-        cursor += arr.length
+        cursor += arr.length - overlap2
+        overlap2 = 0
       when "SNP"
+        arr.each do |snp|
         puts [refname,
               cursor,
               ".",
-              arr.map{|a| a.first.upcase}.join,
-              [arr.map{|a| a.last.upcase}.join, "<NON_REF>"].join(","),
+              snp.first.upcase,
+              [snp.last.upcase, "<NON_REF>"].join(","),
               '.',
               '.',
-              "END=#{cursor + arr.length - 1}",
+              "END=#{cursor};ALTSCAFF=#{a.queryname}",
               "GT:DP:GQ:MIN_DP:PL",
               "1:200:200:200:800,0,800"].join("\t")
-        cursor += arr.length
+          cursor += 1
+        end
+        # puts [refname,
+        #       cursor,
+        #       ".",
+        #       arr.map{|a| a.first.upcase}.join,
+        #       [arr.map{|a| a.last.upcase}.join, "<NON_REF>"].join(","),
+        #       '.',
+        #       '.',
+        #       "END=#{cursor + arr.length - 1};ALTSCAFF=#{a.queryname}",
+        #       "GT:DP:GQ:MIN_DP:PL",
+        #       "1:200:200:200:800,0,800"].join("\t")
+        # cursor += arr.length
       when "INS"
-        refBase = options.ref[refname][cursor].upcase
+        refBase = options.ref[refname][cursor-2].upcase
         puts [refname,
-              cursor,
+              cursor-1,
               ".",
               refBase,
               [(refBase + arr.map{|a| a.last}.join).upcase, "<NON_REF>"].join(","),
               '.',
               '.',
-              "END=#{cursor + arr.length - 1}",
+              "END=#{cursor - 1};ALTSCAFF=#{a.queryname};STRAND=#{a.strand}",
               "GT:DP:GQ:MIN_DP:PL",
               "1:200:200:200:800,0,800"].join("\t")
       when "DEL"
@@ -150,7 +171,7 @@ d.alignments.group_by{|a| a.refname}.sort_by{|refname, alignments| refname}.each
               ".,<NON_REF>",
               '.',
               '.',
-              "END=#{cursor + arr.length - 1}",
+              "END=#{cursor + arr.length - 1};ALTSCAFF=#{a.queryname}",
               "GT:DP:GQ:MIN_DP:PL",
               "1:200:200:200:800,0,800"].join("\t")
         cursor += arr.length
@@ -158,6 +179,3 @@ d.alignments.group_by{|a| a.refname}.sort_by{|refname, alignments| refname}.each
     end
   end
 end
-
-# Iterate through each hit
-#   Outupt a record 
