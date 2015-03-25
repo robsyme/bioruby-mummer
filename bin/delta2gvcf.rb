@@ -228,6 +228,6 @@ d.alignments
   # entry
   remaining = options.ref[refname].length - cursor
   if remaining > 0
-    puts "#{refname}\t#{cursor+1}\t.\t#{options.ref[refname][cursor+1]}\t<NON_REF>\t.\t.\tEND=#{options.ref[refname].length}\tGT:DP:GQ:PL\t0:0:0:0,0"
+    puts "#{refname}\t#{cursor+1}\t.\t#{options.ref[refname][cursor].upcase}\t<NON_REF>\t.\t.\tEND=#{options.ref[refname].length}\tGT:DP:GQ:PL\t0:0:0:0,0"
   end  
 end
