@@ -15,8 +15,8 @@ class TestBioMummer < MiniTest::Test
     assert_kind_of Fixnum, @report.alignments.first.refstart
     assert_equal 1, @report.alignments.first.refstart
     assert_equal 2435, @report.alignments.first.refstop
-    assert_equal 1, @report.alignments.first.querystart
-    assert_equal 2435, @report.alignments.first.querystop
+    assert_equal 1, @report.alignments.first.qrystart
+    assert_equal 2435, @report.alignments.first.qrystop
   end
 
   should "do basic coordinate transforms on the positive strand" do

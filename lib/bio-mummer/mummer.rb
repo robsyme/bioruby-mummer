@@ -111,8 +111,8 @@ module BioMummer
       end
       if a
         qryname = a.qryname
-        qrystart = a.ref_to_qry(startpos)
-        qrystop = a.ref_to_qry(endpos)
+        qrystart = a.ref_to_query(startpos)
+        qrystop = a.ref_to_query(endpos)
         if qrystart.nil? || qrystop.nil?
           return nil
         else
