@@ -3,15 +3,15 @@ require 'stringio'
 module BioMummer
 
   class Alignment
-    attr_accessor :refname, :queryname, :refstart, :refstop, :querystart, :querystop, :strand, :distances
+    attr_accessor :refname, :qryname, :refstart, :refstop, :qrystart, :qrystop, :strand, :distances
 
-    def initialize(refname, queryname, refstart, refstop, querystart, querystop, strand, distances)
+    def initialize(refname, qryname, refstart, refstop, qrystart, qrystop, strand, distances)
       @refname = refname
-      @queryname = queryname
+      @qryname = qryname
       @refstart = refstart
       @refstop = refstop
-      @querystart = querystart
-      @querystop = querystop
+      @qrystart = qrystart
+      @qrystop = qrystop
       @strand = strand
       @distances = distances
     end
@@ -35,13 +35,13 @@ module BioMummer
 
     def ref_to_query(ref_position)
       position_in_alignment = ref_position - refstart + 1
-      querypos = nil
+      qrypos = nil
       if position_in_alignment >= deltas.length
-        querypos = @querystart - 1 + position_in_alignment + deltas.last
+        qrypos = @qrystart - 1 + position_in_alignment + deltas.last
       elsif deltas[position_in_alignment-1]
-        querypos = @querystart - 1 + position_in_alignment + deltas[position_in_alignment-1]
+        qrypos = @qrystart - 1 + position_in_alignment + deltas[position_in_alignment-1]
       end
-      !@strand && querypos ? @querystart + @querystop - querypos : querypos
+      !@strand && qrypos ? @qrystart + @qrystop - qrypos : qrypos
     end
   end
   
@@ -64,21 +64,21 @@ module BioMummer
 
     def parse(string)
       string.split("\n").slice_before(/^>/).flat_map do |block|
-        refname, queryname = block.shift.match(/>(.*) (.*) \d+ \d+/).captures
+        refname, qryname = block.shift.match(/>(.*) (.*) \d+ \d+/).captures
         block.slice_before(/\d+ \d+ \d+ \d+/).map do |alignment|
-          refstart, refstop, querystart, querystop = alignment
+          refstart, refstop, qrystart, qrystop = alignment
             .shift
             .match(/(\d+) (\d+) (\d+) (\d+) /)
             .captures
             .map{ |c| c.to_i }
           alignment.pop
           Alignment.new(refname,
-                        queryname,
+                        qryname,
                         refstart,
                         refstop,
-                        [querystart, querystop].min,
-                        [querystart, querystop].max,
-                        querystart < querystop,
+                        [qrystart, qrystop].min,
+                        [qrystart, qrystop].max,
+                        qrystart < qrystop,
                         alignment.map{ |i| i.to_i })
         end
       end
@@ -110,13 +110,13 @@ module BioMummer
         a.refname == refname && a.refstart <= startpos && a.refstop >= endpos
       end
       if a
-        queryname = a.queryname
-        querystart = a.ref_to_query(startpos)
-        querystop = a.ref_to_query(endpos)
-        if querystart.nil? || querystop.nil?
+        qryname = a.qryname
+        qrystart = a.ref_to_qry(startpos)
+        qrystop = a.ref_to_qry(endpos)
+        if qrystart.nil? || qrystop.nil?
           return nil
         else
-          return [queryname, querystart, querystop, a.strand]
+          return [qryname, qrystart, qrystop, a.strand]
         end
       else
         return nil

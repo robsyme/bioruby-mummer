@@ -78,9 +78,7 @@ puts '##INFO=<ID=BaseQRankSum,Number=1,Type=Float,Description="Z-score from Wilc
 ##INFO=<ID=MQ,Number=1,Type=Float,Description="RMS Mapping Quality">
 ##INFO=<ID=MQ0,Number=1,Type=Integer,Description="Total Mapping Quality Zero Reads">
 ##INFO=<ID=MQRankSum,Number=1,Type=Float,Description="Z-score From Wilcoxon rank sum test of Alt vs. Ref read mapping qualities">
-##INFO=<ID=ReadPosRankSum,Number=1,Type=Float,Description="Z-score from Wilcoxon rank sum test of Alt vs. Ref read position bias">
-'
-
+##INFO=<ID=ReadPosRankSum,Number=1,Type=Float,Description="Z-score from Wilcoxon rank sum test of Alt vs. Ref read position bias">'
 puts "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t#{options.samplename}"
 
 def vcf_array(type, refbases, qrybases, refname, cursor, length)
@@ -103,87 +101,227 @@ def vcf_array(type, refbases, qrybases, refname, cursor, length)
 end
 
 d.alignments
-  .group_by{|a| a.refname}.sort_by{|refname, alignments| refname}
+  .group_by{ |alignment| alignment.refname }
+  .sort_by{ |refname, alignments| refname }
   .each do |refname, alignments|
+  # We sweep along each of the reference sequences. The cursor tracks
+  # our position as we go so we don't concatenate regions that are
+  # actually overlapping.
   cursor = 1
-  alignments.sort_by{|a| [a.refstart, a.refstop].min}.each do |a|
-    ref = options.ref[a.refname].subseq(a.refstart, a.refstop)
-    qry = a.strand ? options.qry[a.queryname].subseq(a.querystart, a.querystop) : options.qry[a.queryname].subseq(a.querystart, a.querystop).complement
-    if a.refstart > cursor
-      puts [refname, cursor, '.', options.ref[refname][cursor-1].upcase, "<NON_REF>", '.', '.', "END=#{a.refstart - 1}", "GT:DP:GQ:MIN_DP:PL", "0:0:0:0:0,0"].join("\t")
-      cursor = a.refstart
-      overlap = 0
+
+  # The =alignments= object is an array of BioMummer::Alignment
+  # objects that all match a particular scaffold.
+  alignments
+    .sort_by{ |alignment| alignment.refstart }.
+    each do |aln|
+    # Create Bio::Sequence::NA subsequences for the reference and
+    # query. They are initially unaligned.
+    refSeq = options.ref[aln.refname].subseq(aln.refstart, aln.refstop)
+    qrySeq = options.qry[aln.qryname].subseq(aln.qrystart, aln.qrystop)
+    qrySeq.complement! unless aln.strand
+    
+    # Do we have uncovered bases before the alignment starts? These
+    # are detected as gaps between the cursor and the alignment start
+    # site in the reference.
+    gap_size = aln.refstart - cursor
+    overlap_size = 0
+    if gap_size > 0
+      # There is a stretch of reference bases without an alignment
+      puts "#{refname}\t#{cursor}\t.\t#{options.ref[refname][cursor].upcase}\t<NON_REF>\t.\t.\tEND=#{aln.refstart - 1}\tGT:DP:GQ:MIN_DP:PL\t0:0:0:0:0,0"
+      cursor = aln.refstart
     else
-      overlap = cursor - a.refstart
+      # There is an overlap between two alignments.
+      overlap_size = cursor - aln.refstart + 1
     end
-    a.distances.inject([0,0]) do |mem, distance|
-      if distance > 0
-        qry.insert(mem.first + distance - 1, ".")
-        [mem.first + distance, mem.last + distance]
+
+    # Nucmer records insertions and deletions as a series of positive
+    # and negative integers corresponding to how many steps along the
+    # alignment until you get to the next gap in the reference
+    # sequence (positive integer) or how many steps until the next gap
+    # in the query (negative integer). BioMummer exposes these as the
+    # alignments 'distances' array.
+    # We walk along the Bio::Sequence::NA objects and insert gaps
+    # (".") when needed. We store our current position in the
+    # reference and the query in a two-element array.
+    aln.distances.inject([0,0]) do |mem, distance_to_gap|
+      if distance_to_gap > 0
+        qrySeq.insert(mem[0] + distance_to_gap - 1, ".")
+        [mem[0] + distance_to_gap, mem[1] + distance_to_gap]
       else
-        ref.insert(mem.last - distance - 1, ".")
-        [mem.first - distance, mem.last - distance]
+        refSeq.insert(mem[1] - distance_to_gap - 1, ".")
+        [mem[0] - distance_to_gap, mem[1] - distance_to_gap]
       end
     end
-    ref.chars.zip(qry.chars)
-      .each_with_index
-      .drop_while{ |arr, idx| overlap > idx }
-      .inject([nil, [],[]]) do |mem, arr_with_idx|
-      arr, idx = arr_with_idx
-      refbase, qrybase = arr
-      case arr.uniq.join
-      when /^\..$/ # Insertion in query
-        if mem.first == :INSERTION
-          mem[2] << arr.last
-        elsif mem.first.nil? # We're at the beginning of an alignment
-          # so there is no previous base from the pre-fetched
-          # alignment to steal, so we go back to the hash to grab the
-          # previous base.
-          prevBase = options.ref[refname][cursor-2]
-          mem = [:INSERTION, [prevBase], [prevBase, arr.last]]
-        else
-          stolen_base = mem[2].pop.upcase
-          puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil? || mem[2].length <= 0
-          cursor += mem[1].length
-          mem = [:INSERTION, [stolen_base], [stolen_base, arr.last]]
-        end
-      when /^.\.$/ # Deletion in query
-        if mem.first == :DELETION
-          mem[1] << arr.first
-        elsif mem.first.nil? # We're at the beginning of an alignment
-          # so there is no previous base from the pre-fetched
-          # alignment to steal, so we go back to the hash to grab the
-          # previous base.
-          prevBase = options.ref[refname][cursor-2]
-          mem = [:DELETION, [prevBase, arr.first], [prevBase]]
-        else
-          stolen_base = mem[1].pop.upcase
-          puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil? || mem[1].length <= 0
-          cursor += mem[1].length
-          mem = [:DELETION, [stolen_base, arr.first], [stolen_base]]
-        end
-      when /^.$/ # No variation
-        if mem.first == :NOVAR
-          mem[1] << arr.first
-          mem[2] << arr.last
-        else
-          puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil?
-          mem = [:NOVAR, [arr.first], [arr.last]]
-          cursor += mem[1].length
-        end
-      when /^[^\.][^\.]$/ # A SNP
-        if mem.first == :SNP
-          mem[1] << arr.first
-          mem[2] << arr.last
-        else
-          puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil?
-          cursor += mem[1].length
-          mem = [:SNP, [arr.first], [arr.last]]
-        end
-      else # Something unexpected
-        raise "I can't even"
+    
+    # Zip together the sequences which should now be aligned. This
+    # returns an array of two-element arrays. The two-element
+    # arrays hold a reference base and a query base.
+    # These are then grouped by class
+    grouped_pairs = refSeq.chars
+      .zip(qrySeq.chars)
+      .drop_while{ |refBase, qryBase| refBase == '.' ? overlap_size > 0 : (overlap_size-=1) > 0 }
+      .chunk do |refBase, qryBase|
+      # Classify runs of identiry, insertions, deletions or SNPs.
+      if refBase == qryBase
+        :NO_VARIATION
+      elsif refBase == '.'
+        :INSERTION
+      elsif qryBase == '.'
+        :DELETION
+      else
+        :SNP
       end
-      mem
+    end.to_a
+    next if grouped_pairs.length == 0
+
+    # Indels are reported like this
+    #
+    # REF: A
+    # QRY: AT
+    #
+    # OR
+    #
+    # REF: GC
+    # QRY: G
+    #
+    # These require a 1 bp backtrack (to grab the 'A' in the first
+    # example) before printing the record. Taking two a time allows us
+    # to trim the previous record when an insertion is next-up. If the
+    # upcoming variation *is* an insertion, the current set is trimmed
+    # and the 'stolen' base is recorded in the =each_with_object= mem
+    # array.
+    stolen_pair = [[nil],[nil]]
+    grouped_pairs.each_cons(2) do |current, upcoming|
+      cur_class = current.first
+      cur_pairs = current.last
+      nxt_class = upcoming.first
+
+      # We might have stolen the only sequence in this chunk. If so,
+      # move straight on to the next chunk.
+      if nxt_class == :INSERTION || nxt_class == :DELETION
+        stolen_pair = cur_pairs.pop
+        next if cur_pairs.length == 0
+      end
+
+      case cur_class
+      when :NO_VARIATION
+        puts "#{refname}\t#{cursor}\t.\t#{cur_pairs.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{(cursor+=cur_pairs.length)-1}\tGT:DP:GQ:MIN_DP:PL\t0:200:200:200:0,800"
+      when :SNP
+        cur_pairs.each do |refBase, qryBase|
+          puts "#{refname}\t#{cursor}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{(cursor+=1)-1}\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+        end
+      when :DELETION
+        refSeq, qrySeq = cur_pairs.unshift(stolen_pair).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
+        puts "#{refname}\t#{cursor}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{(cursor+=refSeq.length) - 1};CLASS=DEL\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+      when :INSERTION
+        refSeq, qrySeq = cur_pairs.unshift(stolen_pair).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
+        puts "#{refname}\t#{cursor}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{(cursor+=refSeq.length) - 1}\tGT:DP:GQ:PL\t1:200:200:800,0,0,800"
+      end
+    end
+
+    # Print out the last group. We print out the first member of each 
+    current = grouped_pairs.last
+    cur_class = current.first
+    cur_pairs = current.last
+    case cur_class
+    when :NO_VARIATION
+      puts "#{refname}\t#{cursor}\t.\t#{cur_pairs.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{(cursor+=cur_pairs.length)-1}\tGT:DP:GQ:MIN_DP:PL\t0:200:200:200:0,800"
+    when :SNP
+      cur_pairs.each do |refBase, qryBase|
+        puts "#{refname}\t#{cursor}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{(cursor+=1)-1}\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+      end
+    when :DELETION
+      refSeq, qrySeq = cur_pairs.unshift(stolen_pair).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
+      puts "#{refname}\t#{cursor}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{(cursor+=refSeq.length) - 1}\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+    when :INSERTION
+      refSeq, qrySeq = cur_pairs.unshift(stolen_pair).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
+      puts "#{refname}\t#{cursor}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{(cursor+=refSeq.length) - 1}\tGT:DP:GQ:PL\t1:200:200:800,0,0,800"
     end
   end
 end
+
+# d.alignments
+#   .group_by{|a| a.refname}.sort_by{|refname, alignments| refname}
+#   .each do |refname, alignments|
+#   cursor = 1
+#   alignments.sort_by{|a| [a.refstart, a.refstop].min}.each do |a|
+#     ref = options.ref[a.refname].subseq(a.refstart, a.refstop)
+#     qry = a.strand ? options.qry[a.queryname].subseq(a.querystart, a.querystop) : options.qry[a.queryname].subseq(a.querystart, a.querystop).complement
+#     if a.refstart > cursor
+#       puts [refname, cursor, '.', options.ref[refname][cursor-1].upcase, "<NON_REF>", '.', '.', "END=#{a.refstart - 1}", "GT:DP:GQ:MIN_DP:PL", "0:0:0:0:0,0"].join("\t")
+#       cursor = a.refstart
+#       overlap = 0
+#     else
+#       overlap = cursor - a.refstart
+#     end
+#     a.distances.inject([0,0]) do |mem, distance|
+#       if distance > 0
+#         qry.insert(mem.first + distance - 1, ".")
+#         [mem.first + distance, mem.last + distance]
+#       else
+#         ref.insert(mem.last - distance - 1, ".")
+#         [mem.first - distance, mem.last - distance]
+#       end
+#     end
+#     ref.chars.zip(qry.chars)
+#       .each_with_index
+#       .drop_while{ |arr, idx| overlap > idx }
+#       .inject([nil, [],[]]) do |mem, arr_with_idx|
+#       arr, idx = arr_with_idx
+#       refbase, qrybase = arr
+#       case arr.uniq.join
+#       when /^\..$/ # Insertion in query
+#         if mem.first == :INSERTION
+#           mem[2] << arr.last
+#         elsif mem.first.nil? # We're at the beginning of an alignment
+#           # so there is no previous base from the pre-fetched
+#           # alignment to steal, so we go back to the hash to grab the
+#           # previous base.
+#           prevBase = options.ref[refname][cursor-2]
+#           mem = [:INSERTION, [prevBase], [prevBase, arr.last]]
+#         else
+#           stolen_base = mem[2].pop.upcase
+#           puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil? || mem[2].length <= 0
+#           cursor += mem[1].length
+#           mem = [:INSERTION, [stolen_base], [stolen_base, arr.last]]
+#         end
+#       when /^.\.$/ # Deletion in query
+#         if mem.first == :DELETION
+#           mem[1] << arr.first
+#         elsif mem.first.nil? # We're at the beginning of an alignment
+#           # so there is no previous base from the pre-fetched
+#           # alignment to steal, so we go back to the hash to grab the
+#           # previous base.
+#           prevBase = options.ref[refname][cursor-2]
+#           mem = [:DELETION, [prevBase, arr.first], [prevBase]]
+#         else
+#           stolen_base = mem[1].pop.upcase
+#           puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil? || mem[1].length <= 0
+#           cursor += mem[1].length
+#           mem = [:DELETION, [stolen_base, arr.first], [stolen_base]]
+#         end
+#       when /^.$/ # No variation
+#         if mem.first == :NOVAR
+#           mem[1] << arr.first
+#           mem[2] << arr.last
+#         else
+#           puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil?
+#           mem = [:NOVAR, [arr.first], [arr.last]]
+#           cursor += mem[1].length
+#         end
+#       when /^[^\.][^\.]$/ # A SNP
+#         if mem.first == :SNP
+#           mem[1] << arr.first
+#           mem[2] << arr.last
+#         else
+#           puts vcf_array(*mem, refname, cursor, mem[1].length).join("\t") unless mem.first.nil?
+#           cursor += mem[1].length
+#           mem = [:SNP, [arr.first], [arr.last]]
+#         end
+#       else # Something unexpected
+#         raise "I can't even"
+#       end
+#       mem
+#     end
+#   end
+# end
