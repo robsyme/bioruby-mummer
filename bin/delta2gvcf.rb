@@ -187,17 +187,17 @@ d.alignments
     when :NO_COVERAGE
       puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:0:0:0,0"
     when :NO_VARIATION
-      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:200:200:0,800"
+      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:1:200:0,800"
     when :SNP
       cur_zipped.each do |refBase, qryBase, position|
-        puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{position};CLASS=SNP\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+        puts "#{refname}\t#{position}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{position}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
       end
     when :INSERTION
       refSeq, qrySeq = cur_zipped.unshift(stolen_zipped).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
-      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last};CLASS=DEL\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
     when :DELETION
       refSeq, qrySeq = cur_zipped.unshift(stolen_zipped).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
-      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last};CLASS=DEL\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
     end
     cursor = [cursor, cur_zipped.last.last].max
   end
@@ -210,17 +210,17 @@ d.alignments
   when :NO_COVERAGE
     puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:0:0:0,0"
   when :NO_VARIATION
-    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:200:200:0,800"
+    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{cur_zipped.first.first.upcase}\t<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t0:1:200:0,800"
   when :SNP
     cur_zipped.each do |refBase, qryBase, position|
-      puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{position};CLASS=SNP\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+      puts "#{refname}\t#{position}\t.\t#{refBase.upcase}\t#{qryBase.upcase},<NON_REF>\t.\t.\tEND=#{position}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
     end
   when :INSERTION
     refSeq, qrySeq = cur_zipped.unshift(stolen_zipped).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
-    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last};CLASS=DEL\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
   when :DELETION
     refSeq, qrySeq = cur_zipped.unshift(stolen_zipped).transpose.map{|seq| seq.reject{|c|c=='.'}.join.upcase }
-    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last};CLASS=DEL\tGT:DP:GQ:PL\t1:200:200:800,0,800"
+    puts "#{refname}\t#{cur_zipped.first.last}\t.\t#{refSeq}\t#{qrySeq},<NON_REF>\t.\t.\tEND=#{cur_zipped.last.last}\tGT:DP:GQ:PL\t1:1:200:800,0,800"
   end
 
   # It's likely that the alignments don't run to the end of the
@@ -229,5 +229,5 @@ d.alignments
   remaining = options.ref[refname].length - cursor
   if remaining > 0
     puts "#{refname}\t#{cursor+1}\t.\t#{options.ref[refname][cursor].upcase}\t<NON_REF>\t.\t.\tEND=#{options.ref[refname].length}\tGT:DP:GQ:PL\t0:0:0:0,0"
-  end  
+  end
 end
